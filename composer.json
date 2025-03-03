@@ -1,0 +1,11 @@
+{
+    "require": {
+        "php": ">=7.4",
+        "picqer/php-barcode-generator": "^3.2"
+    },
+    "autoload": {
+        "psr-4": {
+            "Summit\\": "includes/"
+        }
+    }
+}

@@ -1,0 +1,43 @@
+summit/
+├── assets/
+│   ├── css/
+│   │   └── styles.css
+│   ├── js/
+│   │   └── main.js
+│   └── images/
+├── config/
+│   ├── config.php
+│   └── database.php
+├── includes/
+│   ├── init.php
+│   ├── router.php
+│   ├── auth.php
+│   ├── helpers.php
+│   └── error_handler.php
+├── views/
+│   ├── layouts/
+│   │   └── main.php
+│   ├── components/
+│   │   ├── header.php
+│   │   ├── footer.php
+│   │   ├── nav.php
+│   │   └── loading.php
+│   ├── auth/
+│   │   ├── login.php
+│   │   └── register.php
+│   ├── admin/
+│   │   ├── dashboard.php
+│   │   └── participants.php
+│   ├── user/
+│   │   ├── dashboard.php
+│   │   └── profile.php
+│   └── error_pages/
+│       ├── 404.php
+│       └── 500.php
+├── uploads/
+│   ├── passports/
+│   └── receipts/
+├── logs/
+├── .htaccess
+└── index.php
+

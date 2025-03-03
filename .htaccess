@@ -1,0 +1,48 @@
+# Enable rewrite engine
+RewriteEngine On
+RewriteBase /summit/
+
+# Allow direct access to assets
+RewriteCond %{REQUEST_URI} ^/summit/assets/ [OR]
+RewriteCond %{REQUEST_URI} ^/summit/uploads/ [OR]
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# Route everything else through index.php
+RewriteRule ^(.*)$ index.php [QSA,L]
+
+# Protect sensitive files
+<FilesMatch "^(config\.php|\.env|\.git)">
+    Order Allow,Deny
+    Deny from all
+</FilesMatch>
+
+# Protect sensitive directories
+<DirectoryMatch "^/.*/\.(git|env)/">
+    Order Allow,Deny
+    Deny from all
+</DirectoryMatch>
+
+# Allow access to specific file types
+<FilesMatch "\.(jpg|jpeg|png|gif|css|js|ico|pdf|svg)$">
+    Allow from all
+</FilesMatch>
+
+# Set security headers
+Header set X-Content-Type-Options "nosniff"
+Header set X-XSS-Protection "1; mode=block"
+Header set X-Frame-Options "SAMEORIGIN"
+Header set Content-Security-Policy "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; img-src 'self' data:;"
+
+# Set PHP values
+php_value upload_max_filesize 10M
+php_value post_max_size 10M
+php_value max_execution_time 300
+php_value memory_limit 256M
+
+# Set default charset
+AddDefaultCharset UTF-8
+
+# Prevent directory listing
+Options -Indexes
