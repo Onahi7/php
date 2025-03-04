@@ -2,46 +2,27 @@
 // Set proper character encoding
 header('Content-Type: text/html; charset=UTF-8');
 
-// Namespace declarations must be at the top
+// Load configuration
+require_once __DIR__ . '/config/config.php';
+
+// Load core components and compatibility layer
+require_once __DIR__ . '/includes/load_core.php';
+
+// Namespace declarations
 use Summit\Core\Router;
 use Summit\Core\Auth;
 use Summit\Core\SessionManager;
 use Summit\Core\RateLimiter;
 
-// Autoloader
-spl_autoload_register(function ($class) {
-    $prefix = 'Summit\\';
-    $base_dir = __DIR__ . '/includes/';
-
-    $len = strlen($prefix);
-    if (strncmp($prefix, $class, $len) !== 0) {
-        return;
-    }
-
-    $relative_class = substr($class, $len);
-    $file = $base_dir . str_replace('\\', '/', $relative_class) . '.php';
-
-    if (file_exists($file)) {
-        require $file;
-    }
-});
-
 try {
-    // Load configuration
-    require_once __DIR__ . '/config/config.php';
-    
     // Initialize error handling
     require_once __DIR__ . '/includes/error_handler.php';
     
     // Initialize session management
-    $sessionManager = new SessionManager();
+    $sessionManager = SessionManager::getInstance();
     
     // Initialize rate limiter
-    require_once __DIR__ . '/includes/security/rate_limiter.php';
     $rateLimiter = new RateLimiter($conn);
-    
-    // Initialize CSRF protection
-    require_once __DIR__ . '/includes/security/csrf.php';
     
     // Load helper functions
     require_once __DIR__ . '/includes/helpers.php';

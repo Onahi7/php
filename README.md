@@ -1,6 +1,38 @@
-# Education Summit Registration System
+# North Central Education Summit 2025
 
-A comprehensive system for managing education summit registrations, payments, and meal validation.
+A modern web application for managing the North Central Education Summit registration, payments, and event management. Built with PHP, MySQL, and modern front-end technologies.
+
+## Features
+
+1. **User Management**
+   - Secure registration and authentication
+   - Profile management with photo upload
+   - Role-based access control (Admin, Validation Team, Participants)
+
+2. **Payment Integration**
+   - Seamless Paystack integration
+   - Automated payment verification
+   - Digital receipt generation
+   - Payment tracking dashboard
+
+3. **Event Management**
+   - Real-time participant tracking
+   - Automated email notifications
+   - Customizable event schedule
+   - Resource management
+
+4. **Meal Management**
+   - QR code-based meal validation
+   - Real-time validation statistics
+   - Multiple validation points
+   - Meal session tracking
+
+5. **Admin Features**
+   - Comprehensive dashboard
+   - Real-time analytics
+   - Report generation
+   - System configuration
+   - User management
 
 ## System Requirements
 
@@ -8,169 +40,147 @@ A comprehensive system for managing education summit registrations, payments, an
 - MySQL 5.7 or higher
 - Apache/Nginx web server
 - Composer for dependency management
-- SSL certificate for secure transactions
+- SSL certificate (required for Paystack)
 
 ## Installation
 
 1. **Clone the Repository**
 ```bash
-git clone https://github.com/yourusername/education-summit.git
-cd education-summit
+git clone https://github.com/Dickson-Hardy/Summit.git
+cd summit
 ```
 
-2. **Environment Setup**
-Create a `.env` file in the root directory with the following content:
+2. **Install Dependencies**
+```bash
+composer install
+```
+
+3. **Configure Environment**
+Create a `.env` file in the root directory:
 ```env
 # Application
-APP_ENV=development
-APP_DEBUG=true
-APP_URL=http://localhost/summit
-APP_NAME="Education Summit"
+BASE_PATH=/summit
+ENVIRONMENT=production
 
 # Database
 DB_HOST=localhost
-DB_NAME=your_database_name
-DB_USER=your_database_user
-DB_PASSWORD=your_database_password
+DB_NAME=u633250213_summit
+DB_USER=u633250213_summit
+DB_PASS=your_password
 
-# Payment Gateway - Paystack
-PAYSTACK_SECRET_KEY=your_secret_key
+# Paystack (required for payments)
 PAYSTACK_PUBLIC_KEY=your_public_key
+PAYSTACK_SECRET_KEY=your_secret_key
 
-# Mail
-MAIL_FROM_ADDRESS=noreply@yourdomain.com
-MAIL_FROM_NAME="Education Summit"
-
-# Admin
-ADMIN_EMAIL=admin@yourdomain.com
-ADMIN_NOTIFICATION_EMAIL=notifications@yourdomain.com
-```
-
-3. **Directory Permissions**
-```bash
-chmod -R 755 .
-chmod -R 777 storage/logs
-chmod -R 777 storage/uploads
-chmod -R 777 storage/cache
+# Email (required for notifications)
+SMTP_HOST=smtp.hostinger.com
+SMTP_PORT=587
+SMTP_USER=noreply@conference.nappsnasarawa.com
+SMTP_PASS=your_smtp_password
+SMTP_FROM=noreply@conference.nappsnasarawa.com
 ```
 
 4. **Database Setup**
-- Create a new MySQL database
-- Import the initial schema:
 ```bash
 php install/setup.php
 ```
 
-5. **Web Server Configuration**
-Apache `.htaccess` is already configured. For Nginx, use:
-```nginx
-location /summit {
-    try_files $uri $uri/ /summit/index.php?$query_string;
-}
+5. **Create Admin User**
+```bash
+php install/create-admin.php
+```
+
+6. **Set Directory Permissions**
+```bash
+chmod -R 755 .
+chmod -R 777 uploads/
+chmod -R 777 logs/
 ```
 
 ## Directory Structure
 
 ```
 summit/
-├── config/               # Configuration files
+├── assets/             # Static assets (CSS, JS, images)
+├── config/             # Configuration files
 ├── includes/
-│   ├── core/            # Core system files
-│   ├── auth/            # Authentication
-│   └── payment/         # Payment gateways
-├── public/              # Public assets
-├── storage/
-│   ├── logs/           # Application logs
-│   ├── uploads/        # User uploads
-│   └── cache/          # Cache files
-├── views/               # View templates
-└── vendor/              # Dependencies
+│   ├── core/          # Core system classes
+│   ├── security/      # Security-related classes
+│   ├── handlers/      # Request handlers
+│   └── helpers/       # Helper functions
+├── install/           # Installation scripts
+├── uploads/          # User uploads
+├── views/            # PHP view templates
+└── vendor/           # Composer dependencies
 ```
-
-## Features
-
-1. **User Management**
-   - Registration and authentication
-   - Profile management
-   - Role-based access control
-
-2. **Payment System**
-   - Multiple payment gateways
-   - Payment verification
-   - Invoice generation
-   - Refund management
-
-3. **Meal Management**
-   - Barcode/phone validation
-   - Meal tracking
-   - Validation team dashboard
-   - Real-time statistics
-
-4. **Admin Dashboard**
-   - User management
-   - Payment tracking
-   - Report generation
-   - System settings
 
 ## Security Features
 
-1. **Authentication**
+1. **Authentication & Authorization**
    - Secure password hashing
-   - Session management
+   - Session-based authentication
    - CSRF protection
    - Rate limiting
 
 2. **Data Protection**
-   - Input validation
-   - SQL injection prevention
+   - Input validation and sanitization
+   - Prepared statements for SQL
    - XSS protection
-   - HTTPS enforcement
+   - Secure file uploads
 
-3. **Access Control**
-   - Role-based permissions
-   - IP logging
-   - Activity monitoring
-   - Audit trails
+3. **Session Security**
+   - Secure session handling
+   - Session hijacking prevention
+   - Automatic session regeneration
+   - IP-based session validation
 
 ## Usage
 
-1. **Admin Access**
-   - Default URL: `/admin`
-   - Create initial admin: `php install/create-admin.php`
+1. **Admin Dashboard**
+   - Access via: `/admin`
+   - Manage participants
+   - View reports
+   - Configure settings
 
-2. **User Registration**
-   - Users register at: `/register`
-   - Email verification required
-   - Payment confirmation needed
+2. **Validation Team**
+   - Access via: `/admin/validation-dashboard`
+   - Scan participant QR codes
+   - View validation statistics
+   - Track meal sessions
 
-3. **Meal Validation**
-   - Validation team login: `/admin/validation-dashboard`
-   - Scan barcode or enter phone
-   - View real-time stats
+3. **Participants**
+   - Register: `/register`
+   - View profile: `/profile`
+   - Make payment
+   - Download event materials
 
-## Maintenance
+## Troubleshooting
 
-1. **Backups**
-   - Database: Daily automated backups
-   - Files: Weekly backups
-   - Retention: 30 days
+1. **Common Issues**
+   - Session errors: Check `session.php` configuration
+   - Payment failures: Verify Paystack credentials
+   - Upload errors: Check directory permissions
 
-2. **Updates**
-   - Check for updates: `php update.php check`
-   - Apply updates: `php update.php apply`
-
-3. **Logs**
-   - Application logs: `storage/logs/app.log`
-   - Error logs: `storage/logs/error.log`
-   - Access logs: `storage/logs/access.log`
+2. **Error Logs**
+   - Application logs: `logs/app.log`
+   - Error logs: `logs/error.log`
+   - Access logs: `logs/access.log`
 
 ## Support
 
-For support and issues:
-1. Check documentation: `/docs`
-2. Submit issue: GitHub Issues
-3. Contact: support@yourdomain.com
+For technical support:
+1. Email: support@nappsnasarawa.com
+2. Visit: https://conference.nappsnasarawa.com/support
+3. Call: +234 (your support number)
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request
 
 ## License
 
-Copyright © 2025 Education Summit. All rights reserved.
+Copyright 2025 NAPPS Nasarawa. All rights reserved.

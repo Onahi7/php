@@ -1,36 +1,40 @@
 <?php
+namespace Summit\Payment;
+
+use Summit\Core\Database;
+use Summit\Core\Config;
+use TCPDF;
+
 class ReceiptGenerator {
-    private $conn;
+    private $db;
     
-    public function __construct($conn) {
-        $this->conn = $conn;
+    public function __construct() {
+        $this->db = Database::getInstance();
     }
     
     public function generate($reference) {
         // Get payment details
-        $stmt = $this->conn->prepare("
-            SELECT p.*, u.name, u.email 
-            FROM payments p 
-            JOIN users u ON p.user_id = u.id 
-            WHERE p.reference = ?
-        ");
+        $sql = "SELECT p.*, u.name, u.email 
+                FROM payments p 
+                JOIN users u ON p.user_id = u.id 
+                WHERE p.reference = :reference";
         
-        $stmt->bind_param("s", $reference);
-        $stmt->execute();
-        $payment = $stmt->get_result()->fetch_assoc();
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute(['reference' => $reference]);
+        $payment = $stmt->fetch(\PDO::FETCH_ASSOC);
         
         if (!$payment) {
-            throw new Exception("Payment not found");
+            throw new \Exception("Payment not found");
         }
         
         // Generate PDF receipt
-        require_once __DIR__ . '/../vendor/tcpdf/tcpdf.php';
+        require_once Config::get('app.vendor_path') . '/tcpdf/tcpdf.php';
         
         $pdf = new TCPDF(PDF_PAGE_ORIENTATION, PDF_UNIT, PDF_PAGE_FORMAT, true, 'UTF-8', false);
         
         // Set document information
-        $pdf->SetCreator(SITE_NAME);
-        $pdf->SetAuthor(SITE_NAME);
+        $pdf->SetCreator(Config::get('app.name'));
+        $pdf->SetAuthor(Config::get('app.name'));
         $pdf->SetTitle('Payment Receipt - ' . $reference);
         
         // Remove header/footer
@@ -49,36 +53,51 @@ class ReceiptGenerator {
         
         // Generate file name
         $fileName = 'receipt_' . $reference . '.pdf';
-        $filePath = __DIR__ . '/../../uploads/receipts/' . $fileName;
+        $filePath = Config::get('app.upload_path') . '/receipts/' . $fileName;
+        
+        // Create receipts directory if it doesn't exist
+        if (!file_exists(dirname($filePath))) {
+            mkdir(dirname($filePath), 0777, true);
+        }
         
         // Save file
         $pdf->Output($filePath, 'F');
         
         // Update payment record with receipt path
-        $stmt = $this->conn->prepare("
-            UPDATE payments 
-            SET receipt_path = ? 
-            WHERE reference = ?
-        ");
+        $sql = "UPDATE payments 
+                SET receipt_path = :receipt_path,
+                    updated_at = NOW() 
+                WHERE reference = :reference";
         
-        $stmt->bind_param("ss", $fileName, $reference);
-        $stmt->execute();
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([
+            'receipt_path' => $fileName,
+            'reference' => $reference
+        ]);
         
         return $fileName;
     }
     
     private function getReceiptTemplate($payment) {
+        $siteName = Config::get('app.name');
         return '
         <style>
-            table { width: 100%; border-collapse: collapse; }
-            th, td { padding: 8px; border: 1px solid #ddd; }
+            table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+            th, td { padding: 12px; border: 1px solid #ddd; }
             th { background-color: #f8f9fa; }
+            .receipt-header { text-align: center; margin-bottom: 30px; }
+            .receipt-logo { max-width: 200px; margin-bottom: 20px; }
+            .payment-details { margin: 20px 0; }
+            .customer-details { margin-top: 30px; }
         </style>
-        <h1>' . SITE_NAME . ' - Payment Receipt</h1>
-        <p>Reference: ' . $payment['reference'] . '</p>
-        <p>Date: ' . date('F j, Y', strtotime($payment['created_at'])) . '</p>
-        <p>Status: ' . ucfirst($payment['status']) . '</p>
-        <br>
+        <div class="receipt-header">
+            <h1>' . $siteName . ' - Payment Receipt</h1>
+        </div>
+        <div class="payment-details">
+            <p><strong>Reference:</strong> ' . htmlspecialchars($payment['reference']) . '</p>
+            <p><strong>Date:</strong> ' . date('F j, Y', strtotime($payment['created_at'])) . '</p>
+            <p><strong>Status:</strong> ' . ucfirst(htmlspecialchars($payment['status'])) . '</p>
+        </div>
         <table>
             <tr>
                 <th>Description</th>
@@ -88,12 +107,19 @@ class ReceiptGenerator {
                 <td>Summit Registration Fee</td>
                 <td>₦' . number_format($payment['amount'], 2) . '</td>
             </tr>
+            <tr>
+                <th>Total</th>
+                <td><strong>₦' . number_format($payment['amount'], 2) . '</strong></td>
+            </tr>
         </table>
-        <br>
-        <p><strong>Paid By:</strong></p>
-        <p>Name: ' . $payment['name'] . '</p>
-        <p>Email: ' . $payment['email'] . '</p>
+        <div class="customer-details">
+            <p><strong>Paid By:</strong></p>
+            <p>Name: ' . htmlspecialchars($payment['name']) . '</p>
+            <p>Email: ' . htmlspecialchars($payment['email']) . '</p>
+        </div>
+        <div style="margin-top: 40px; font-size: 10px; text-align: center;">
+            <p>This is a computer-generated receipt and does not require a signature.</p>
+        </div>
         ';
     }
 }
-

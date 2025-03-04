@@ -158,6 +158,7 @@ $mealManager = MealManager::getInstance();
 <script>
 let selectedMealType = null;
 let codeReader = new ZXing.BrowserMultiFormatReader();
+let scannerActive = false;
 
 // Initialize the page
 document.addEventListener('DOMContentLoaded', function() {
@@ -173,6 +174,12 @@ document.addEventListener('DOMContentLoaded', function() {
         updateTeamStats();
         checkMealTime();
     }, 60000);
+
+    // Set up form submission
+    document.getElementById('validationForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        validateMeal();
+    });
 });
 
 function checkMealTime() {
@@ -184,9 +191,14 @@ function checkMealTime() {
     const isMorningTime = hour >= 6 && hour < 10;
     const isEveningTime = hour >= 17 && hour < 21;
     
-    document.querySelectorAll('button[onclick^="setMealType"]').forEach(btn => {
-        btn.disabled = false;
-    });
+    const morningBtn = document.querySelector('button[onclick="setMealType(\'morning\')"]');
+    const eveningBtn = document.querySelector('button[onclick="setMealType(\'evening\')"]');
+    
+    morningBtn.disabled = !isMorningTime;
+    eveningBtn.disabled = !isEveningTime;
+    
+    morningBtn.classList.toggle('opacity-50', !isMorningTime);
+    eveningBtn.classList.toggle('opacity-50', !isEveningTime);
 
     if (!isMorningTime && !isEveningTime) {
         showNotification('Warning', 'Outside of meal service hours', 'warning');
@@ -196,45 +208,26 @@ function checkMealTime() {
 function setMealType(type) {
     selectedMealType = type;
     document.getElementById('mealType').value = type;
-    document.getElementById('selectedMeal').textContent = 
-        `Selected: ${type.charAt(0).toUpperCase() + type.slice(1)} Meal`;
+    document.getElementById('selectedMeal').textContent = type === 'morning' ? 'Morning Meal Selected' : 'Evening Meal Selected';
     
-    // Update UI to show active selection
-    document.querySelectorAll('button[onclick^="setMealType"]').forEach(btn => {
-        btn.classList.remove('ring-2');
-        if (btn.onclick.toString().includes(type)) {
-            btn.classList.add('ring-2');
+    const buttons = document.querySelectorAll('button[onclick^="setMealType"]');
+    buttons.forEach(btn => {
+        btn.classList.remove('ring-2', 'ring-offset-2');
+        if (btn.getAttribute('onclick').includes(type)) {
+            btn.classList.add('ring-2', 'ring-offset-2');
         }
     });
 }
 
-function startScanner() {
-    const modal = document.getElementById('scannerModal');
-    modal.classList.remove('hidden');
-    
-    codeReader.decodeFromVideoDevice(null, 'scanner-container', (result, err) => {
-        if (result) {
-            document.getElementById('identifier').value = result.text;
-            stopScanner();
-        }
-    });
-}
-
-function stopScanner() {
-    codeReader.reset();
-    document.getElementById('scannerModal').classList.add('hidden');
-}
-
-document.getElementById('validationForm').addEventListener('submit', function(e) {
-    e.preventDefault();
-    
+function validateMeal() {
     if (!selectedMealType) {
-        showNotification('Error', 'Please select a meal type first', 'error');
+        showNotification('Error', 'Please select a meal type', 'error');
         return;
     }
-    
-    const formData = new FormData(this);
-    
+
+    const form = document.getElementById('validationForm');
+    const formData = new FormData(form);
+
     fetch('/includes/handlers/meal_handler.php', {
         method: 'POST',
         body: formData
@@ -243,14 +236,9 @@ document.getElementById('validationForm').addEventListener('submit', function(e)
     .then(data => {
         if (data.success) {
             showNotification('Success', 'Meal validated successfully', 'success');
-            this.reset();
-            document.getElementById('selectedMeal').textContent = '';
+            form.reset();
             selectedMealType = null;
-            document.querySelectorAll('button[onclick^="setMealType"]').forEach(btn => {
-                btn.classList.remove('ring-2');
-            });
-            
-            // Update all displays
+            document.getElementById('selectedMeal').textContent = '';
             updateStats();
             updateRecentValidations();
             updateTeamStats();
@@ -259,10 +247,10 @@ document.getElementById('validationForm').addEventListener('submit', function(e)
         }
     })
     .catch(error => {
-        showNotification('Error', 'An error occurred', 'error');
         console.error('Error:', error);
+        showNotification('Error', 'Failed to validate meal', 'error');
     });
-});
+}
 
 function updateStats() {
     fetch('/includes/handlers/meal_handler.php?action=stats')
@@ -270,7 +258,8 @@ function updateStats() {
         .then(data => {
             document.getElementById('morningCount').textContent = data.morning || 0;
             document.getElementById('eveningCount').textContent = data.evening || 0;
-        });
+        })
+        .catch(error => console.error('Error:', error));
 }
 
 function updateRecentValidations() {
@@ -278,73 +267,93 @@ function updateRecentValidations() {
         .then(response => response.json())
         .then(data => {
             const tbody = document.getElementById('recentValidations');
-            tbody.innerHTML = data.validations.map(v => `
-                <tr>
+            tbody.innerHTML = '';
+            
+            data.validations.forEach(validation => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        ${new Date(v.timestamp).toLocaleTimeString()}
+                        ${new Date(validation.served_at).toLocaleTimeString()}
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        ${v.participant_name}
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        ${validation.participant_name}
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        ${v.meal_type.charAt(0).toUpperCase() + v.meal_type.slice(1)}
+                        ${validation.meal_type.charAt(0).toUpperCase() + validation.meal_type.slice(1)}
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap">
                         <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
                             Validated
                         </span>
                     </td>
-                </tr>
-            `).join('');
-        });
+                `;
+                tbody.appendChild(row);
+            });
+        })
+        .catch(error => console.error('Error:', error));
 }
 
 function updateTeamStats() {
     fetch('/includes/handlers/meal_handler.php?action=team_stats')
         .then(response => response.json())
         .then(data => {
-            const statsContainer = document.getElementById('teamStats');
-            statsContainer.innerHTML = data.team_members.map(member => `
-                <div class="bg-gray-50 p-4 rounded-lg">
-                    <div class="flex justify-between items-center">
+            const container = document.getElementById('teamStats');
+            container.innerHTML = '';
+            
+            data.team_members.forEach(member => {
+                const total = member.validations_today || 0;
+                const morning = member.morning_validations || 0;
+                const evening = member.evening_validations || 0;
+                
+                const div = document.createElement('div');
+                div.className = 'bg-gray-50 p-4 rounded-lg';
+                div.innerHTML = `
+                    <div class="flex justify-between items-center mb-2">
                         <h4 class="font-medium text-gray-700">${member.name}</h4>
-                        <span class="text-sm text-gray-500">${member.validations_today} today</span>
+                        <span class="text-sm text-gray-500">${total} today</span>
                     </div>
-                    <div class="mt-2 flex justify-between text-sm text-gray-500">
-                        <span>Morning: ${member.morning_validations}</span>
-                        <span>Evening: ${member.evening_validations}</span>
+                    <div class="grid grid-cols-2 gap-2 text-sm">
+                        <div class="text-blue-600">Morning: ${morning}</div>
+                        <div class="text-green-600">Evening: ${evening}</div>
                     </div>
-                </div>
-            `).join('');
-        });
+                `;
+                container.appendChild(div);
+            });
+        })
+        .catch(error => console.error('Error:', error));
 }
 
-function showNotification(title, message, type = 'info') {
-    const notification = document.createElement('div');
-    notification.className = `fixed top-4 right-4 p-4 rounded-lg shadow-lg ${
-        type === 'success' ? 'bg-green-500' : 
-        type === 'error' ? 'bg-red-500' : 
-        type === 'warning' ? 'bg-yellow-500' :
-        'bg-blue-500'
-    } text-white max-w-md z-50 transform transition-all duration-300 translate-y-0`;
+function startScanner() {
+    if (scannerActive) return;
     
-    notification.innerHTML = `
-        <div class="flex items-center">
-            <div class="flex-shrink-0">
-                ${type === 'success' ? '✓' : type === 'error' ? '✕' : type === 'warning' ? '⚠' : 'ℹ'}
-            </div>
-            <div class="ml-3">
-                <p class="font-bold">${title}</p>
-                <p class="text-sm">${message}</p>
-            </div>
-        </div>
-    `;
+    const modal = document.getElementById('scannerModal');
+    modal.classList.remove('hidden');
+    
+    codeReader.decodeFromVideoDevice(null, 'scanner-container', (result, err) => {
+        if (result) {
+            document.getElementById('identifier').value = result.text;
+            stopScanner();
+            validateMeal();
+        }
+        if (err && !(err instanceof ZXing.NotFoundException)) {
+            console.error(err);
+        }
+    }).then(() => {
+        scannerActive = true;
+    });
+}
 
-    document.body.appendChild(notification);
+function stopScanner() {
+    if (!scannerActive) return;
+    
+    codeReader.reset();
+    scannerActive = false;
+    document.getElementById('scannerModal').classList.add('hidden');
+}
 
-    setTimeout(() => {
-        notification.classList.add('translate-y-[-100%]', 'opacity-0');
-        setTimeout(() => notification.remove(), 300);
-    }, 5000);
+function showNotification(title, message, type) {
+    // You can implement this using your preferred notification library
+    // For now, we'll use a simple alert
+    alert(`${title}: ${message}`);
 }
 </script>
