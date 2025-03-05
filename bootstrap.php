@@ -90,51 +90,6 @@ if (defined('DB_HOST')) {
     }
 }
 
-// Simple router function
-function route($path, $callback) {
-    $request_path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
-    $base_path = BASE_PATH;
-    
-    // Remove base path from request
-    if (strpos($request_path, $base_path) === 0) {
-        $request_path = substr($request_path, strlen($base_path));
-    }
-    
-    // Ensure path starts with /
-    if ($request_path[0] !== '/') {
-        $request_path = '/' . $request_path;
-    }
-    
-    // Remove trailing slash if not root
-    if ($request_path !== '/' && substr($request_path, -1) === '/') {
-        $request_path = rtrim($request_path, '/');
-    }
-    
-    // Check if route matches
-    if ($path === $request_path) {
-        call_user_func($callback);
-        return true;
-    }
-    
-    return false;
-}
-
-// Function to check if user is logged in
-function is_logged_in() {
-    return isset($_SESSION['user_id']);
-}
-
-// Function to check if user has role
-function has_role($role) {
-    return isset($_SESSION['user_role']) && $_SESSION['user_role'] === $role;
-}
-
-// Function to redirect
-function redirect($url) {
-    header("Location: $url");
-    exit;
-}
-
 // Function to render view
 function view($view, $data = []) {
     // Add default data
