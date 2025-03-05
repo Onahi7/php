@@ -1,29 +1,5 @@
 <?php
-// View helper functions
-function view($name, $data = []) {
-    // Extract data to make variables available in view
-    extract($data);
-    
-    // Set the view path
-    $viewPath = __DIR__ . "/../views/{$name}.php";
-    
-    // Check if view exists
-    if (!file_exists($viewPath)) {
-        throw new Exception("View {$name} not found");
-    }
-    
-    // Start output buffering
-    ob_start();
-    
-    // Load the view
-    require $viewPath;
-    
-    // Get the contents and clean the buffer
-    $content = ob_get_clean();
-    
-    // Load the layout with the content
-    require __DIR__ . '/../views/layouts/main.php';
-}
+// Helper functions for Summit application
 
 // Redirect helper
 function redirect($path) {
@@ -61,7 +37,15 @@ function generate_random_string($length = 10) {
 
 // Generate CSRF token
 function generate_csrf_token() {
-    return CSRF::generateToken();
+    if (!isset($_SESSION['csrf_token'])) {
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    }
+    return $_SESSION['csrf_token'];
+}
+
+// Validate CSRF token
+function validate_csrf_token($token) {
+    return isset($_SESSION['csrf_token']) && hash_equals($_SESSION['csrf_token'], $token);
 }
 
 // Validate file upload
@@ -89,7 +73,7 @@ function handle_file_upload($file, $destination, $filename = null) {
                    strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
     }
     
-    $upload_path = __DIR__ . '/../uploads/' . trim($destination, '/');
+    $upload_path = __DIR__ . '/../storage/uploads/' . trim($destination, '/');
     
     if (!file_exists($upload_path)) {
         mkdir($upload_path, 0755, true);
@@ -116,4 +100,38 @@ function paginate($total, $per_page, $current_page = 1) {
         'total_pages' => $total_pages,
         'offset' => ($current_page - 1) * $per_page
     ];
+}
+
+// Log activity
+function log_activity($user_id, $action, $description = '') {
+    global $conn;
+    
+    try {
+        $stmt = $conn->prepare("
+            INSERT INTO activity_logs 
+            (user_id, action, description, ip_address, user_agent, created_at) 
+            VALUES (?, ?, ?, ?, ?, NOW())
+        ");
+        
+        $stmt->execute([
+            $user_id,
+            $action,
+            $description,
+            $_SERVER['REMOTE_ADDR'] ?? null,
+            $_SERVER['HTTP_USER_AGENT'] ?? null
+        ]);
+        
+        return true;
+    } catch (Exception $e) {
+        error_log("Activity logging failed: " . $e->getMessage());
+        return false;
+    }
+}
+
+// Clean input
+function clean_input($data) {
+    $data = trim($data);
+    $data = stripslashes($data);
+    $data = htmlspecialchars($data);
+    return $data;
 }
