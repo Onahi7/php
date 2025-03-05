@@ -1,117 +1,186 @@
 <?php
-// Set proper character encoding
-header('Content-Type: text/html; charset=UTF-8');
+/**
+ * Summit Application Main Entry Point
+ */
 
-// Load configuration
-require_once __DIR__ . '/config/config.php';
+// Load bootstrap file
+require_once __DIR__ . '/bootstrap.php';
 
-// Load core components and compatibility layer
-require_once __DIR__ . '/includes/load_core.php';
+// Create router instance
+$router = \Summit\Core\Router::getInstance();
 
-// Namespace declarations
-use Summit\Core\Router;
-use Summit\Core\Auth;
-use Summit\Core\SessionManager;
-use Summit\Core\RateLimiter;
-
+// Define routes
 try {
-    // Initialize error handling
-    require_once __DIR__ . '/includes/error_handler.php';
+    // Home page
+    $router->get('/', function() {
+        view('home');
+    });
     
-    // Initialize session management
-    $sessionManager = SessionManager::getInstance();
-    
-    // Initialize rate limiter
-    $rateLimiter = new RateLimiter($conn);
-    
-    // Load helper functions
-    require_once __DIR__ . '/includes/helpers.php';
-
-    // Initialize router
-    $router = Router::getInstance();
-
-    // Middleware to check authentication
-    $authMiddleware = function() {
-        if (!Auth::isLoggedIn()) {
-            header('Location: ' . BASE_PATH . '/login.php');
-            return false;
+    // Admin dashboard
+    $router->get('/admin', function() {
+        if (!is_logged_in() || !has_role('admin')) {
+            redirect(BASE_PATH . '/login');
         }
-    };
-
-    // Middleware to check admin access
-    $adminMiddleware = function() {
-        if (!Auth::isAdmin()) {
-            header('Location: ' . BASE_PATH . '/dashboard.php');
-            return false;
+        view('admin/dashboard');
+    });
+    
+    // Admin validation dashboard
+    $router->get('/admin/validation', function() {
+        if (!is_logged_in() || !has_role('admin') && !has_role('validation')) {
+            redirect(BASE_PATH . '/login');
         }
-    };
-
-    // Public routes
-    $router->get('/', 'home/index');
-    $router->get('/login', 'auth/login');
-    $router->post('/login', 'auth/authenticate');
-    $router->get('/register', 'auth/register');
-    $router->post('/register', 'auth/store');
-    $router->get('/forgot-password', 'auth/forgot_password');
-    $router->post('/reset-password', 'auth/reset_password');
-
-    // User routes
-    $router->get('/dashboard', 'user/dashboard')->middleware($authMiddleware);
-    $router->get('/profile', 'user/profile')->middleware($authMiddleware);
-    $router->post('/profile/update', 'user/update_profile')->middleware($authMiddleware);
-    $router->get('/payments', 'user/payments')->middleware($authMiddleware);
-    $router->post('/payments/process', 'user/process_payment')->middleware($authMiddleware);
-
-    // Admin routes
-    $router->get('/admin', 'admin/dashboard')->middleware($adminMiddleware);
-    $router->get('/admin/registrations', 'admin/registrations')->middleware($adminMiddleware);
-    $router->get('/admin/verify-registrations', 'admin/verify_registrations')->middleware($adminMiddleware);
-    $router->post('/admin/verify-registration/{id}', 'admin/verify_registration')->middleware($adminMiddleware);
-    $router->get('/admin/registration-settings', 'admin/registration_settings')->middleware($adminMiddleware);
-
-    // Meal validation routes
-    $router->get('/admin/validation-dashboard', 'admin/validation_dashboard')->middleware($adminMiddleware);
-    $router->get('/admin/meal-stats', 'admin/meal_stats')->middleware($adminMiddleware);
-    $router->get('/admin/validation-team', 'admin/validation_team')->middleware($adminMiddleware);
-    $router->post('/admin/validate-meal', 'admin/validate_meal')->middleware($adminMiddleware);
-
-    // Payment management routes
-    $router->get('/admin/payments', 'admin/payments')->middleware($adminMiddleware);
-    $router->get('/admin/payment-settings', 'admin/payment_settings')->middleware($adminMiddleware);
-    $router->get('/admin/invoices', 'admin/invoices')->middleware($adminMiddleware);
-    $router->post('/admin/generate-invoice/{id}', 'admin/generate_invoice')->middleware($adminMiddleware);
-
-    // Report routes
-    $router->get('/admin/reports', 'admin/reports')->middleware($adminMiddleware);
-    $router->get('/admin/custom-reports', 'admin/custom_reports')->middleware($adminMiddleware);
-    $router->get('/admin/scheduled-reports', 'admin/scheduled_reports')->middleware($adminMiddleware);
-    $router->post('/admin/generate-report', 'admin/generate_report')->middleware($adminMiddleware);
-
-    // Settings routes
-    $router->get('/admin/users', 'admin/users')->middleware($adminMiddleware);
-    $router->get('/admin/roles', 'admin/roles')->middleware($adminMiddleware);
-    $router->get('/admin/settings', 'admin/settings')->middleware($adminMiddleware);
-    $router->post('/admin/update-settings', 'admin/update_settings')->middleware($adminMiddleware);
-
-    // API routes
-    $router->post('/api/validate-participant', 'api/validate_participant')->middleware($adminMiddleware);
-    $router->get('/api/meal-stats', 'api/meal_stats')->middleware($adminMiddleware);
-    $router->get('/api/payment-stats', 'api/payment_stats')->middleware($adminMiddleware);
-
-    // Error handling
+        view('admin/validation-dashboard');
+    });
+    
+    // Login page
+    $router->get('/login', function() {
+        if (is_logged_in()) {
+            $role = $_SESSION['user_role'];
+            if ($role === 'admin') {
+                redirect(BASE_PATH . '/admin');
+            } else {
+                redirect(BASE_PATH . '/dashboard');
+            }
+        }
+        view('auth/login');
+    });
+    
+    // Login process
+    $router->post('/login-process', function() {
+        global $conn;
+        
+        $email = $_POST['email'] ?? '';
+        $password = $_POST['password'] ?? '';
+        
+        // Check CSRF token
+        if (!isset($_POST['csrf_token']) || !isset($_SESSION['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+            $_SESSION['login_error'] = 'Security token mismatch. Please try again.';
+            redirect(BASE_PATH . '/login');
+        }
+        
+        // Simple authentication
+        try {
+            $stmt = $conn->prepare("SELECT * FROM users WHERE email = ?");
+            $stmt->execute([$email]);
+            $user = $stmt->fetch();
+            
+            if ($user && password_verify($password, $user['password'])) {
+                // Update last login time
+                $updateStmt = $conn->prepare("UPDATE users SET last_login = NOW() WHERE id = ?");
+                $updateStmt->execute([$user['id']]);
+                
+                // Set session data
+                $_SESSION['user_id'] = $user['id'];
+                $_SESSION['user_name'] = $user['name'];
+                $_SESSION['user_email'] = $user['email'];
+                $_SESSION['user_role'] = $user['role'];
+                
+                // Log activity
+                $logStmt = $conn->prepare("INSERT INTO activity_logs (user_id, action, description, ip_address, user_agent, created_at) VALUES (?, ?, ?, ?, ?, NOW())");
+                $logStmt->execute([
+                    $user['id'],
+                    'login',
+                    'User logged in successfully',
+                    $_SERVER['REMOTE_ADDR'] ?? null,
+                    $_SERVER['HTTP_USER_AGENT'] ?? null
+                ]);
+                
+                // Redirect based on role
+                if ($user['role'] === 'admin') {
+                    redirect(BASE_PATH . '/admin');
+                } else {
+                    redirect(BASE_PATH . '/dashboard');
+                }
+            } else {
+                $_SESSION['login_error'] = 'Invalid email or password';
+                redirect(BASE_PATH . '/login');
+            }
+        } catch (PDOException $e) {
+            error_log("Login error: " . $e->getMessage());
+            $_SESSION['login_error'] = 'An error occurred during login. Please try again.';
+            redirect(BASE_PATH . '/login');
+        }
+    });
+    
+    // Logout
+    $router->get('/logout', function() {
+        // Log the logout activity if user is logged in
+        if (isset($_SESSION['user_id']) && isset($conn)) {
+            try {
+                $logStmt = $conn->prepare("INSERT INTO activity_logs (user_id, action, description, ip_address, user_agent, created_at) VALUES (?, ?, ?, ?, ?, NOW())");
+                $logStmt->execute([
+                    $_SESSION['user_id'],
+                    'logout',
+                    'User logged out',
+                    $_SERVER['REMOTE_ADDR'] ?? null,
+                    $_SERVER['HTTP_USER_AGENT'] ?? null
+                ]);
+            } catch (Exception $e) {
+                error_log("Logout logging error: " . $e->getMessage());
+            }
+        }
+        
+        // Destroy session
+        session_destroy();
+        redirect(BASE_PATH . '/login');
+    });
+    
+    // API endpoints
+    $router->post('/api/validate-meal', function() {
+        global $conn;
+        
+        header('Content-Type: application/json');
+        
+        // Check if user is authorized
+        if (!is_logged_in() || (!has_role('admin') && !has_role('validator'))) {
+            echo json_encode(['error' => 'Unauthorized']);
+            exit;
+        }
+        
+        $identifier = $_POST['identifier'] ?? '';
+        $mealType = $_POST['meal_type'] ?? '';
+        
+        if (empty($identifier) || empty($mealType)) {
+            echo json_encode(['error' => 'Missing required fields']);
+            exit;
+        }
+        
+        try {
+            $mealManager = new MealManager($conn);
+            $attendee = $mealManager->validateAttendee($identifier);
+            $result = $mealManager->recordMeal($attendee['id'], $_SESSION['user_id'], $mealType);
+            
+            echo json_encode([
+                'success' => true,
+                'message' => 'Meal validated successfully',
+                'attendee' => [
+                    'name' => $attendee['name'],
+                    'email' => $attendee['email']
+                ]
+            ]);
+        } catch (Exception $e) {
+            echo json_encode(['error' => $e->getMessage()]);
+        }
+        exit;
+    });
+    
+    // 404 Not Found handler
     $router->notFound(function() {
         header("HTTP/1.0 404 Not Found");
-        require 'views/errors/404.php';
+        view('errors/404', ['title' => 'Page Not Found']);
     });
-
+    
     // Run the router
     $router->run();
     
 } catch (Exception $e) {
-    // Log the error
-    error_log("Critical Error: " . $e->getMessage());
+    // Log error
+    error_log($e->getMessage());
     
-    // Display error page
-    http_response_code(500);
-    require ERROR_PAGES_PATH . '/500.php';
+    // Show error page
+    header('HTTP/1.1 500 Internal Server Error');
+    view('errors/500', [
+        'title' => 'Internal Server Error',
+        'message' => DEBUG_MODE ? $e->getMessage() : 'An unexpected error occurred. Please try again later.'
+    ]);
 }
